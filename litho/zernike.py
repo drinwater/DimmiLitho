@@ -3,7 +3,7 @@
 
 from math import factorial
 
-from numpy import arctan2, array, cos, linspace, meshgrid, sin, sqrt, where, zeros
+from jax.numpy import arctan2, array, cos, linspace, meshgrid, sin, sqrt, where, zeros
 
 
 def polar_array(T, num):

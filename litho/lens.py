@@ -8,7 +8,7 @@ NOTE: This is for Scalar Pupil Assumption, not Jones Pupil
 
 import copy
 
-import numpy as np
+import jax.numpy as np
 
 from litho.zernike import zerniken
 

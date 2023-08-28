@@ -14,7 +14,7 @@ Here are some tricks:
 """
 
 import matplotlib.pyplot as plt
-import numpy as np
+import jax.numpy as np
 import pyfftw
 
 if __name__ == "__main__":

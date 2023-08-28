@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import numpy as np
+import jax.numpy as np
 import pyfftw
 import scipy.signal as sg
 from PIL import Image, ImageDraw

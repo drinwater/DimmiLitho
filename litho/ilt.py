@@ -4,7 +4,8 @@
 import copy
 import math
 
-import numpy as np
+from jax import jit, scan
+import jax.numpy as np
 import pyfftw
 import scipy.signal as sg
 
@@ -93,23 +94,23 @@ class ILT:
         self.y1 = int(self.ysize / 2 - self.image.tcc.s.gnum)
         self.y2 = int(self.ysize / 2 + self.image.tcc.s.gnum + 1)
 
-        self.spat_part = pyfftw.empty_aligned(
+        self.spat_part = np.empty_aligned(
             (self.image.mask.y_gridnum, self.image.mask.x_gridnum), dtype="complex128"
         )
-        self.freq_part = pyfftw.empty_aligned(
+        self.freq_part = np.empty_aligned(
             (self.image.mask.y_gridnum, self.image.mask.x_gridnum), dtype="complex128"
         )
-        self.ifft_ilt = pyfftw.FFTW(
-            self.freq_part, self.spat_part, axes=(0, 1), direction="FFTW_BACKWARD"
+        self.ifft_ilt = np.fft(
+            self.freq_part, axes=(0, 1), direction="backward"
         )
 
-        self.spat_part2 = pyfftw.empty_aligned(
+        self.spat_part2 = np.empty(
             (self.image.mask.y_gridnum, self.image.mask.x_gridnum), dtype="complex128"
         )
-        self.freq_part2 = pyfftw.empty_aligned(
+        self.freq_part2 = np.empty(
             (self.image.mask.y_gridnum, self.image.mask.x_gridnum), dtype="complex128"
         )
-        self.fft_ilt = pyfftw.FFTW(self.spat_part2, self.freq_part2, axes=(0, 1))
+        self.fft_ilt = np.fft(self.spat_part2, self.freq_part2, axes=(0, 1))
 
     def mask_init(self):
         x = np.linspace(-10, 10, 21)
@@ -133,38 +134,41 @@ class ILT:
         AA = (self.image.RI - self.target) * self.image.RI * (1 - self.image.RI)
         self.grad = np.zeros((self.ysize, self.xsize))
 
-        for ii in range(self.image.order):
-            e_field = np.zeros((self.ysize, self.xsize), dtype=np.complex)
-            e_field[self.y1 : self.y2, self.x1 : self.x2] = (
-                self.image.kernels[:, :, ii]
-                * self.image.mask.fdata[self.y1 : self.y2, self.x1 : self.x2]
-            )
-
-            self.freq_part[:] = np.fft.ifftshift(e_field)
-            self.ifft_ilt()
-            BB = np.fft.fftshift(self.spat_part)
-            # BB = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(e_field)))
-            CC = AA * BB
-
-            self.spat_part2[:] = np.fft.ifftshift(CC)
-            self.fft_ilt()
-            CC_F = np.fft.fftshift(self.freq_part2)
-            # CC_F = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(CC)))
-
-            DD_F = np.conj(np.rot90(self.image.kernels[:, :, ii], 2))
-            EE_F = np.zeros((self.ysize, self.xsize), dtype=np.complex)
-            EE_F[self.y1 : self.y2, self.x1 : self.x2] = (
-                DD_F * CC_F[self.y1 : self.y2, self.x1 : self.x2]
-            )
-
-            self.freq_part[:] = np.fft.ifftshift(EE_F)
-            self.ifft_ilt()
-            EE = np.fft.fftshift(self.spat_part)
-            # EE = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(EE_F)))
-
-            FF = self.image.coefs[ii] * (EE.real)
-            self.grad += np.real(FF)
+        scan()
         self.grad = -self.grad * np.sin(self.masktheta)
+
+    @jit
+    def grad(ii: int) -> None:
+        e_field = np.zeros((self.ysize, self.xsize), dtype=np.complex)
+        e_field[self.y1 : self.y2, self.x1 : self.x2] = (
+            self.image.kernels[:, :, ii]
+            * self.image.mask.fdata[self.y1 : self.y2, self.x1 : self.x2]
+        )
+
+        self.freq_part[:] = np.fft.ifftshift(e_field)
+        self.ifft_ilt()
+        BB = np.fft.fftshift(self.spat_part)
+        # BB = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(e_field)))
+        CC = AA * BB
+
+        self.spat_part2[:] = np.fft.ifftshift(CC)
+        self.fft_ilt()
+        CC_F = np.fft.fftshift(self.freq_part2)
+        # CC_F = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(CC)))
+
+        DD_F = np.conj(np.rot90(self.image.kernels[:, :, ii], 2))
+        EE_F = np.zeros((self.ysize, self.xsize), dtype=np.complex)
+        EE_F[self.y1 : self.y2, self.x1 : self.x2] = (
+            DD_F * CC_F[self.y1 : self.y2, self.x1 : self.x2]
+        )
+
+        self.freq_part[:] = np.fft.ifftshift(EE_F)
+        self.ifft_ilt()
+        EE = np.fft.fftshift(self.spat_part)
+        # EE = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(EE_F)))
+
+        FF = self.image.coefs[ii] * (EE.real)
+        self.grad += np.real(FF)
 
     def calRegTerm(self):
         # self.reg = np.sum(self.maskdata - self.maskdata*self.maskdata)*\

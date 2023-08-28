@@ -1,5 +1,5 @@
 pillow==8.3.2
-numpy
+jax
 matplotlib
 pyFFTW
 scikit-image
